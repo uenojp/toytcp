@@ -6,6 +6,7 @@ use anyhow::Result;
 
 pub const TCP_HEADER_SIZE: usize = 20;
 
+#[allow(non_snake_case)]
 pub mod ControlFlags {
     pub const FIN: u8 = 1 << 0; // No more data from sender
     pub const SYN: u8 = 1 << 1; // Synchronize sequence numbers
