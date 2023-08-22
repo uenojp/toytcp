@@ -246,6 +246,7 @@ impl TcpStream {
                             )?;
                             socket.state = TcpState::Established;
                             debug!("{} : State changed to {:?}.", socket.id(), socket.state);
+                            self.notify_event(TcpEvent::ConnectionEstablished(socket.id()))?;
                         }
                         // Simultaneous 3-way handshake.
                         // ref. Section 3.4. Establishing a Connection - Figure 9.
@@ -260,7 +261,6 @@ impl TcpStream {
                             debug!("{} : State changed to {:?}.", socket.id(), socket.state);
                         }
                     }
-                    self.notify_event(TcpEvent::ConnectionEstablished(socket.id()))?;
                 }
                 _ => todo!("no implentation for state {:?}", socket.state),
             }
