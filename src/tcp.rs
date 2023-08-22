@@ -5,7 +5,7 @@ use std::{
 };
 
 use anyhow::Result;
-use log::{debug, info};
+use log::{debug, info, warn};
 use pnet::{
     packet::{ip::IpNextHeaderProtocols, tcp::TcpPacket as PnetTcpPacket, Packet},
     transport::{self, TransportChannelType},
@@ -197,6 +197,12 @@ impl TcpStream {
             // Convert the pnet::TcpPacket to toytcp::TcpPacket.
             let packet = TcpPacket::from(packet);
 
+            if !packet.verify_packet(local_address, remote_address) {
+                warn!("Verification failed for the TCP packet {:X?}", &packet);
+                continue;
+            }
+            debug!("Verified the TCP packet {:X?}", &packet);
+
             let mut socket_table = self.sockets.write().unwrap();
             let socket = match socket_table.get_mut(&TcpSocketId {
                 local_address,
@@ -210,16 +216,6 @@ impl TcpStream {
                     todo!("handle a listening socket.");
                 }
             };
-
-            if !packet.verify_packet(local_address, remote_address) {
-                info!(
-                    "{} : Received an invalid TCP packet {:X?}",
-                    socket.id(),
-                    &packet
-                );
-                continue;
-            }
-            debug!("{} : Verified the TCP packet {:X?}", socket.id(), &packet);
 
             match socket.state {
                 // Process packets received after sending SYN.
