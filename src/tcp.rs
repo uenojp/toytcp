@@ -222,9 +222,13 @@ impl TcpStream {
             debug!("{} : Verified the TCP packet {:X?}", socket.id(), &packet);
 
             match socket.state {
+                // Process packets received after sending SYN.
                 TcpState::SynSent => {
-                    // TODO: Check SND.UNA <= SEG.ACK <= SND.NXT
-                    if packet.flags() == TcpFlags::SYN | TcpFlags::ACK {
+                    if packet.flags() == TcpFlags::SYN | TcpFlags::ACK
+                        // SND.UNA <= SEG.ACK <= SND.NXT.
+                        && socket.snd.una <= packet.acknowledgment_number()
+                        && packet.acknowledgment_number() <= socket.snd.nxt
+                    {
                         debug!("{} : SYN|ACK received.", socket.id());
                         // Processing for <-- ACK.
                         socket.snd.una = packet.acknowledgment_number();
@@ -234,15 +238,30 @@ impl TcpStream {
                         socket.rcv.nxt = packet.sequence_number() + 1;
                         socket.rcv.irs = packet.sequence_number();
 
+                        // Basic 3-way handshake.
+                        // ref. Section 3.4. Establishing a Connection - Figure 8.
                         if socket.snd.iss < socket.snd.una {
                             debug!("{} : ACK sent.", socket.id());
-                            socket.state = TcpState::Established;
                             socket.send_tcp_packet(
                                 socket.snd.nxt,
                                 socket.rcv.nxt,
                                 TcpFlags::ACK,
                                 &[],
                             )?;
+                            socket.state = TcpState::Established;
+                            debug!("{} : State changed to {:?}.", socket.id(), socket.state);
+                        }
+                        // Simultaneous 3-way handshake.
+                        // ref. Section 3.4. Establishing a Connection - Figure 9.
+                        else {
+                            socket.state = TcpState::SynReceived;
+                            socket.send_tcp_packet(
+                                socket.snd.iss,
+                                socket.rcv.nxt,
+                                TcpFlags::ACK,
+                                &[],
+                            )?;
+                            debug!("{} : State changed to {:?}.", socket.id(), socket.state);
                         }
                     }
                     self.notify_event(TcpEvent::ConnectionEstablished(socket.id()))?;
