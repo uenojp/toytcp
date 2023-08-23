@@ -1,4 +1,7 @@
-use std::net::{IpAddr, Ipv4Addr};
+use std::{
+    collections::VecDeque,
+    net::{IpAddr, Ipv4Addr},
+};
 
 use anyhow::{Context, Result};
 use log::debug;
@@ -112,6 +115,10 @@ pub struct TcpSocket {
     pub snd: SendSequenceVariables,
     pub rcv: ReceiveSequenceVariables,
     pub state: TcpState,
+    /// A queue of connected sockets. Only used by the listening socket.
+    pub connected_socket_queue: VecDeque<TcpSocketId>,
+    /// A listening socket. Only used by the connected socket.
+    pub listening_socket: Option<TcpSocketId>,
     /// A transmission channel.
     /// This channel uses a raw socket. When a TCP packet is written to this channel, it is transmitted
     /// with an IP header.
@@ -135,9 +142,12 @@ impl TcpSocket {
             local_port,
             remote_address,
             remote_port,
+            // FIXME: Since the snd.wnd is determined by the remtoe host, it is not appropriate that the initial value is our buffer size. maybe...
             snd: SendSequenceVariables::with_window_size(TCP_SOCKET_BUFFER_SIZE as u16),
             rcv: ReceiveSequenceVariables::with_window_size(TCP_SOCKET_BUFFER_SIZE as u16),
             state: TcpState::Closed,
+            connected_socket_queue: VecDeque::new(),
+            listening_socket: None,
             sender,
         })
     }
